@@ -14,4 +14,10 @@ Current project setup expects the local path to look like:
 |-SDL-1.2.15
 |-demoLive555withFFMPEG
 
-For quick debug, also download the shared build of FFMPEG and put the DLLs in the debug build folder.
+Put the following DLLs in the debug build folder to get up and running:
+avcodec-57.dll
+avformat-57.dll
+avutil-55.dll
+SDL.dll
+swresample-2.dll
+swscale-4.dll
