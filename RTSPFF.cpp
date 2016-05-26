@@ -50,16 +50,22 @@ extern "C" {
 #include "libavcodec/avcodec.h"
 #include "libavformat/avformat.h"
 #include "libavutil/mathematics.h"
-#include "libavutil/old_pix_fmts.h"
+#include "libavutil/pixfmt.h"
 #include "libswscale/swscale.h"
 
-#define INBUF_SIZE 4096
+//#define INBUF_SIZE 4096
+#define INBUF_SIZE 524288
 #define AUDIO_INBUF_SIZE 20480
 #define AUDIO_REFILL_THRESH 4096
 
 }
 #include "Base64.hh"
 // Forward function definitions:
+
+// See http://stackoverflow.com/questions/30412951/unresolved-external-symbol-imp-fprintf-and-imp-iob-func-sdl2
+#ifdef main
+#undef main
+#endif
 
 // RTSP 'response handlers':
 void continueAfterDESCRIBE(RTSPClient* rtspClient, int resultCode, char* resultString);
@@ -175,16 +181,16 @@ public:
 // Or it might be a "FileSink", for outputting the received data into a file (as is done by the "openRTSP" application).
 // In this example code, however, we define a simple 'dummy' sink that receives incoming data, but does nothing with it.
 
-class DummySink: public MediaSink {
+class SDLSink: public MediaSink {
 public:
-  static DummySink* createNew(UsageEnvironment& env,
+  static SDLSink* createNew(UsageEnvironment& env,
 			      MediaSubsession& subsession, // identifies the kind of data that's being received
 			      char const* streamId = NULL); // identifies the stream itself (optional)
 
 private:
-  DummySink(UsageEnvironment& env, MediaSubsession& subsession, char const* streamId);
+  SDLSink(UsageEnvironment& env, MediaSubsession& subsession, char const* streamId);
     // called only by "createNew()"
-  virtual ~DummySink();
+  virtual ~SDLSink();
 
   static void afterGettingFrame(void* clientData, unsigned frameSize,
                                 unsigned numTruncatedBytes,
@@ -359,7 +365,7 @@ if (sprop != NULL) {
     // Having successfully setup the subsession, create a data sink for it, and call "startPlaying()" on it.
     // (This will prepare the data sink to receive data; the actual flow of data from the client won't start happening until later,
     // after we've sent a RTSP "PLAY" command.)
-    scs.subsession->sink = DummySink::createNew(env, *scs.subsession, rtspClient->url());
+    scs.subsession->sink = SDLSink::createNew(env, *scs.subsession, rtspClient->url());
       // perhaps use your own custom "MediaSink" subclass instead
     if (scs.subsession->sink == NULL) {
       env << *rtspClient << "Failed to create a data sink for the \"" << *scs.subsession
@@ -370,10 +376,10 @@ if (sprop != NULL) {
     env << *rtspClient << "Created a data sink for the \"" << *scs.subsession << "\" subsession\n";
     scs.subsession->miscPtr = rtspClient; // a hack to let subsession handle functions get the "RTSPClient" from the subsession 
 if (sps != NULL) {
-	((DummySink *)scs.subsession->sink)->setSprop(sps, spsSize);
+	((SDLSink *)scs.subsession->sink)->setSprop(sps, spsSize);
 }
 if (pps != NULL) {
-	((DummySink *)scs.subsession->sink)->setSprop(pps, ppsSize);
+	((SDLSink *)scs.subsession->sink)->setSprop(pps, ppsSize);
 }
     scs.subsession->sink->startPlaying(*(scs.subsession->readSource()),
 				       subsessionAfterPlaying, scs.subsession);
@@ -547,22 +553,22 @@ StreamClientState::~StreamClientState() {
 }
 
 
-// Implementation of "DummySink":
+// Implementation of "SDLSink":
 
 // Even though we're not going to be doing anything with the incoming data, we still need to receive it.
 // Define the size of the buffer that we'll use:
-#define DUMMY_SINK_RECEIVE_BUFFER_SIZE 100000
+#define SDL_SINK_RECEIVE_BUFFER_SIZE 1000000
 
-DummySink* DummySink::createNew(UsageEnvironment& env, MediaSubsession& subsession, char const* streamId) {
-  return new DummySink(env, subsession, streamId);
+SDLSink* SDLSink::createNew(UsageEnvironment& env, MediaSubsession& subsession, char const* streamId) {
+  return new SDLSink(env, subsession, streamId);
 }
 
-DummySink::DummySink(UsageEnvironment& env, MediaSubsession& subsession, char const* streamId)
+SDLSink::SDLSink(UsageEnvironment& env, MediaSubsession& subsession, char const* streamId)
   : MediaSink(env),
     fSubsession(subsession) {
   fStreamId = strDup(streamId);
-  fReceiveBuffer = new u_int8_t[DUMMY_SINK_RECEIVE_BUFFER_SIZE];
-  fReceiveBufferAV = new u_int8_t[DUMMY_SINK_RECEIVE_BUFFER_SIZE+4];
+  fReceiveBuffer = new u_int8_t[SDL_SINK_RECEIVE_BUFFER_SIZE];
+  fReceiveBufferAV = new u_int8_t[SDL_SINK_RECEIVE_BUFFER_SIZE+4];
   fReceiveBufferAV[0] = 0;
   fReceiveBufferAV[1] = 0;
   fReceiveBufferAV[2] = 0;
@@ -577,22 +583,25 @@ DummySink::DummySink(UsageEnvironment& env, MediaSubsession& subsession, char co
 	memset(inbuf + INBUF_SIZE, 0, FF_INPUT_BUFFER_PADDING_SIZE);
 
 	//codec = avcodec_find_decoder(CODEC_ID_MPEG1VIDEO);
-	codec = avcodec_find_decoder(CODEC_ID_H264);
+	codec = avcodec_find_decoder(AV_CODEC_ID_H264);
 	if (!codec) {
 		envir() << "codec not found!";
 		exit(4);
 	}
 
 	c = avcodec_alloc_context3(codec);
-	picture = avcodec_alloc_frame();
+	picture = av_frame_alloc();
 
 	if (codec->capabilities & CODEC_CAP_TRUNCATED) {
 		c->flags |= CODEC_FLAG_TRUNCATED; // we do not send complete frames
 	}
 	
-	c->width = 640;
-	c->height = 360;
-	c->pix_fmt = PIX_FMT_YUV420P;
+	// TODO: These hard-coded values need to be modified depending on the camera.
+	//       For the VITEC server, it's usually 720x576. Not sure how to find out
+	//       the pixel format.
+	c->width = 720;
+	c->height = 576;
+	c->pix_fmt = AV_PIX_FMT_YUYV422;//AV_PIX_FMT_YUV420P;
 
 	/* for some codecs width and height MUST be initialized there becuase this info is not available in the bitstream */
 
@@ -634,21 +643,21 @@ DummySink::DummySink(UsageEnvironment& env, MediaSubsession& subsession, char co
 	);
 }
 
-DummySink::~DummySink() {
+SDLSink::~SDLSink() {
   delete[] fReceiveBuffer;
   delete[] fStreamId;
 }
 
-void DummySink::afterGettingFrame(void* clientData, unsigned frameSize, unsigned numTruncatedBytes,
+void SDLSink::afterGettingFrame(void* clientData, unsigned frameSize, unsigned numTruncatedBytes,
 				  struct timeval presentationTime, unsigned durationInMicroseconds) {
-  DummySink* sink = (DummySink*)clientData;
+  SDLSink* sink = (SDLSink*)clientData;
   sink->afterGettingFrame(frameSize, numTruncatedBytes, presentationTime, durationInMicroseconds);
 }
 
 // If you don't want to see debugging output for each received frame, then comment out the following line:
 //#define DEBUG_PRINT_EACH_RECEIVED_FRAME 1
 /*
-void DummySink::r2sprop2() {
+void SDLSink::r2sprop2() {
 	avpkt.data[0]	= 0;
 	avpkt.data[1]	= 0;
 	avpkt.data[2]	= 0;
@@ -666,7 +675,7 @@ void DummySink::r2sprop2() {
 //		exit(6);
 	}
 }
-void DummySink::r2sprop() {
+void SDLSink::r2sprop() {
 	avpkt.data[0]	= 0;
 	avpkt.data[1]	= 0;
 	avpkt.data[2]	= 0;
@@ -716,7 +725,7 @@ void pgm_save(unsigned char *buf, int wrap, int xsize, int ysize, char *filename
     fclose(fp);
 
 }
-void DummySink::setSprop(u_int8_t const* prop, unsigned size) {
+void SDLSink::setSprop(u_int8_t const* prop, unsigned size) {
 	uint8_t *buf;
 	uint8_t *buf_start;
 	buf = (uint8_t *)malloc(1000);
@@ -739,7 +748,7 @@ void DummySink::setSprop(u_int8_t const* prop, unsigned size) {
 //	exit (111);
 }
 
-void DummySink::afterGettingFrame(unsigned frameSize, unsigned numTruncatedBytes,
+void SDLSink::afterGettingFrame(unsigned frameSize, unsigned numTruncatedBytes,
 				  struct timeval presentationTime, unsigned /*durationInMicroseconds*/) {
   // We've just received a frame of data.  (Optionally) print out information about it:
 #ifdef DEBUG_PRINT_EACH_RECEIVED_FRAME
@@ -768,7 +777,9 @@ void DummySink::afterGettingFrame(unsigned frameSize, unsigned numTruncatedBytes
 		memcpy (fReceiveBufferAV + 4, fReceiveBuffer, frameSize);	
 		avpkt.data = fReceiveBufferAV; //+2;
 //		avpkt.data = fReceiveBuffer; //+2;
-		len = avcodec_decode_video2 (c, picture, &got_picture, &avpkt);
+		len = avcodec_decode_video2 (c, picture, &got_picture, &avpkt); //int avcodec_decode_video2(AVCodecContext *avctx, AVFrame *picture,int *got_picture_ptr,const AVPacket *avpkt);
+	    // int avcodec_send_packet(AVCodecContext *avctx, const AVPacket *avpkt);
+		// int avcodec_receive_frame(AVCodecContext *avctx, AVFrame *frame);
 		if (len < 0) {
 			envir() << "Error while decoding frame" << frame;
 //			exit(6);
@@ -790,10 +801,10 @@ void DummySink::afterGettingFrame(unsigned frameSize, unsigned numTruncatedBytes
 			sws = sws_getContext(
 				c->width,
 				c->height,
-				PIX_FMT_YUV420P,
+				AV_PIX_FMT_YUV420P,
 				c->width,
 				c->height,
-				PIX_FMT_YUV420P,
+				AV_PIX_FMT_YUV420P,
 				SWS_BICUBIC,
 				NULL,
 				NULL,
@@ -834,7 +845,7 @@ void DummySink::afterGettingFrame(unsigned frameSize, unsigned numTruncatedBytes
 			sws_freeContext(sws);
 			frame ++;
 		} else {
-			envir() << "no picture :( !\n";
+			//envir() << "no picture :( !\n";
 		}
 	}
 
@@ -844,11 +855,11 @@ void DummySink::afterGettingFrame(unsigned frameSize, unsigned numTruncatedBytes
   continuePlaying();
 }
 
-Boolean DummySink::continuePlaying() {
+Boolean SDLSink::continuePlaying() {
   if (fSource == NULL) return False; // sanity check (should not happen)
 
   // Request the next frame of data from our input source.  "afterGettingFrame()" will get called later, when it arrives:
-  fSource->getNextFrame(fReceiveBuffer, DUMMY_SINK_RECEIVE_BUFFER_SIZE,
+  fSource->getNextFrame(fReceiveBuffer, SDL_SINK_RECEIVE_BUFFER_SIZE,
                         afterGettingFrame, this,
                         onSourceClosure, this);
   return True;

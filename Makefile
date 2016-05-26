@@ -1,4 +1,5 @@
-LIVE = /home/yuval/dev/live
+LIVE = ../live
+FFMPEG = ../ffmpeg-20160526-git-89e9393-win64-dev
 INCLUDES = -I$(LIVE)/UsageEnvironment/include -I$(LIVE)/groupsock/include -I$(LIVE)/liveMedia/include -I$(LIVE)/BasicUsageEnvironment/include
 # Default library filename suffixes for each library that we link with.  The "config.*" file might redefine these later.
 libliveMedia_LIB_SUFFIX = $(LIB_SUFFIX)
@@ -6,7 +7,7 @@ libBasicUsageEnvironment_LIB_SUFFIX = $(LIB_SUFFIX)
 libUsageEnvironment_LIB_SUFFIX = $(LIB_SUFFIX)
 libgroupsock_LIB_SUFFIX = $(LIB_SUFFIX)
 ##### Change the following for your environment:
-COMPILE_OPTS =		$(INCLUDES) -I. -I/home/yuval/dev/ffmpeg -O2 -DSOCKLEN_T=socklen_t -D_LARGEFILE_SOURCE=1 -D_FILE_OFFSET_BITS=64 -D__STDC_CONSTANT_MACROS
+COMPILE_OPTS =		$(INCLUDES) -I. -I$(FFMPEG)/include -O2 -DSOCKLEN_T=socklen_t -D_LARGEFILE_SOURCE=1 -D_FILE_OFFSET_BITS=64 -D__STDC_CONSTANT_MACROS
 C =			c
 C_COMPILER =		cc
 C_FLAGS =		$(COMPILE_OPTS) $(CPPFLAGS) $(CFLAGS)
@@ -57,7 +58,7 @@ LOCAL_LIBS =	$(LIVEMEDIA_LIB) $(GROUPSOCK_LIB) \
 LIBS =			$(LOCAL_LIBS) $(LIBS_FOR_CONSOLE_APPLICATION)
 
 RTSPFF$(EXE):	$(RTSP_FF_OBJS) $(LOCAL_LIBS)
-	$(LINK)$@ $(CONSOLE_LINK_OPTS) $(RTSP_FF_OBJS) $(LIBS) /home/yuval/dev/ffmpeg/libavcodec/libavcodec.a /home/yuval/dev/ffmpeg/libavformat/libavformat.a /home/yuval/dev/ffmpeg/libavutil/libavutil.a /home/yuval/dev/ffmpeg/libavfilter/libavfilter.a /home/yuval/dev/ffmpeg/libavdevice/libavdevice.a /home/yuval/dev/ffmpeg/libswscale/libswscale.a /home/yuval/dev/ffmpeg/libswresample/libswresample.a -lm -lz -lbz2 -lpthread -lSDL
+	$(LINK)$@ $(CONSOLE_LINK_OPTS) $(RTSP_FF_OBJS) $(LIBS) $(FFMPEG)/lib -lm -lz -lbz2 -lpthread -lSDL
 
 clean:
 	-rm -rf *.$(OBJ) $(ALL) core *.core *~ include/*~

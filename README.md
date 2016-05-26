@@ -1,28 +1,17 @@
 demoLive555withFFMPEG
 =====================
-Writen by: Yuval Kashtan <yuvalkashtan@gmail>
-2013-10-16
+Forked from https://github.com/yuvalk/demoLive555withFFMPEG to update for VS 2015, Live555 20160520, FFMPEG 20160526, SDL 1.2.15.
 
-Demonstrate live555 RTSP with FFMPEG H264 support
+You need to download:
+- Live555 source and build (see http://tujv.bitbucket.org/2016/02/building-live555/)
+- ffmpeg-20160526-git-89e9393-win32-dev
+- SDL-devel-1.2.15-VC.zip (Visual C++)
 
-Since I had many troubles finding a working example out there, I decided to create one.
-I add SDL support just so you can see it working and used VLC to stream content to test it.
+Current project setup expects the local path to look like:
+<parent_folder>
+|-ffmpeg-20160526-git-89e9393-win32-dev
+|-live
+|-SDL-1.2.15
+|-demoLive555withFFMPEG
 
-It is based off the test client supplied with Live555 on top of which I've added a modified version of Fabrice Bellard libavcodec/api-example.c.
-
-HOW TO COMPILE
------------------
-you'll have to modify the Makefile to fit your location of ffmpeg and live555 (and SDL)
-
-HOW TO COMPILE ON WINDOWS
---------------------------
-you'll have to organize the pre-requesits under ReferenceLib on your own (the names of the directories are all in the .vcxproj file)
-then you can compile with Visual Studio
-
-KNOWN LIMITATIONS:
--------------------
-This is not a fully working client!
-merly a quick demo 
-
-- for now, you'll have to manually set the width and height in the code
-
+For quick debug, also download the shared build of FFMPEG and put the DLLs in the debug build folder.
